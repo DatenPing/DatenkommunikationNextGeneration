@@ -1,0 +1,126 @@
+Index: chatApplication/src/main/java/edu/hm/dako/chat/client/messager/AdvancedMessageListenerThreadImpl.java
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- chatApplication/src/main/java/edu/hm/dako/chat/client/messager/AdvancedMessageListenerThreadImpl.java	(revision 5670f423ab42148e60a9434dd3fe6a13bd6d633d)
++++ chatApplication/src/main/java/edu/hm/dako/chat/client/messager/AdvancedMessageListenerThreadImpl.java	(revision )
+@@ -46,6 +46,13 @@
+ 
+         log.debug("Chat-Message-Event-PDU von " + receivedPdu.getEventUserName() + " empfangen");
+ 
++        try {
++            ChatPDU messageEventConfirm = ChatPDU.createChatMessageEventConfirm(sharedClientData.userName,receivedPdu);
++            connection.send(messageEventConfirm);
++        } catch (Exception e) {
++            e.printStackTrace();
++        }
++
+         // Eventzaehler fuer Testzwecke erhoehen
+         sharedClientData.eventCounter.getAndIncrement();
+ 
+Index: chatApplication/src/main/java/edu/hm/dako/chat/server/worker/AdvancedChatWorkerThreadImpl.java
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+--- chatApplication/src/main/java/edu/hm/dako/chat/server/worker/AdvancedChatWorkerThreadImpl.java	(revision 5670f423ab42148e60a9434dd3fe6a13bd6d633d)
++++ chatApplication/src/main/java/edu/hm/dako/chat/server/worker/AdvancedChatWorkerThreadImpl.java	(revision )
+@@ -82,6 +82,7 @@
+         if (!clients.existsClient(receivedPdu.getUserName())) {
+             log.debug("User nicht in Clientliste: " + receivedPdu.getUserName());
+         } else {
++            clients.createWaitList(userName);
+             // TODO-MESSAGE-REQUEST: 1. Waitlist erzeugen
+ 
+             // Liste der betroffenen Clients ermitteln
+@@ -110,12 +111,29 @@
+                     ExceptionHandler.logException(e);
+                 }
+             }
++            log.debug("Aktuelle Laenge der Clientliste: " + clients.size());
++        }
++    }
+ 
++    private void messageEventConfirmAction(ChatPDU receivedPdu) {
++        String eventUserName = receivedPdu.getEventUserName();
++
++        System.out.println("T: " + Thread.currentThread().getName() + " / " + receivedPdu.getPduType() + " / PDU-Username: " + receivedPdu.getUserName() + " / PDU-EventUserName: " + eventUserName);
++
++        clients.deleteWaitListEntry(eventUserName, receivedPdu.getUserName());
++
++        if (clients.getWaitListSize(eventUserName) == 0) {
++            ClientListEntry client;
+             client = clients.getClient(receivedPdu.getUserName());
+             if (client != null) {
+                 ChatPDU responsePdu = ChatPDU.createChatMessageResponsePdu(
+-                        receivedPdu.getUserName(), 0, 0, 0, 0,
+-                        client.getNumberOfReceivedChatMessages(), receivedPdu.getClientThreadName(),
++                        eventUserName, //TODO: Oder receivedPDU.getUserName...
++                        client.getNumberOfSentEvents(),
++                        client.getNumberOfLostEventConfirms(),
++                        client.getNumberOfReceivedEventConfirms(),
++                        client.getNumberOfRetries(),
++                        client.getNumberOfReceivedChatMessages(),
++                        receivedPdu.getClientThreadName(),
+                         (System.nanoTime() - client.getStartTime()));
+ 
+                 if (responsePdu.getServerTime() / 1000000 > 100) {
+@@ -126,7 +144,9 @@
+                 }
+ 
+                 try {
+-                    client.getConnection().send(responsePdu);
++                    clients.getClient(eventUserName)
++                            .getConnection().send(responsePdu);
++                    System.out.println("T: " + Thread.currentThread().getName() + " User: " + userName + " Send response to: " + eventUserName);
+                     log.debug(
+                             "Chat-Message-Response-PDU an " + receivedPdu.getUserName() + " gesendet");
+                 } catch (Exception e) {
+@@ -135,8 +155,8 @@
+                     ExceptionHandler.logExceptionAndTerminate(e);
+                 }
+             }
+-            log.debug("Aktuelle Laenge der Clientliste: " + clients.size());
+         }
++        //verifyWaitLists();
+     }
+ 
+     @Override
+@@ -188,6 +208,11 @@
+                     loginEventConfirmAction(receivedPdu);
+                     break;
+ 
++                case CHAT_MESSAGE_EVENT_CONFIRM:
++                    messageEventConfirmAction(receivedPdu);
++                    break;
++
++
+                 case CHAT_MESSAGE_REQUEST:
+                     // Chat-Nachricht angekommen, an alle verteilen
+                     chatMessageRequestAction(receivedPdu);
+@@ -219,7 +244,7 @@
+ 
+         tryCreateResponsePDU(eventUserName);
+ 
+-        verifyWaitLists();
++        //verifyWaitLists();
+     }
+ 
+     private void tryCreateResponsePDU(String eventUserName) {
+@@ -243,7 +268,7 @@
+         }
+ 
+     }
+-
++/*
+     private void verifyWaitLists() {
+         Vector<String> clientNameList = clients.getClientNameList();
+ 
+@@ -258,5 +283,5 @@
+         if (emptyLists == clientNameList.size()) {
+             System.out.println("Waitlist verified (all empty)");
+         }
+-    }
++    }*/
+ }
