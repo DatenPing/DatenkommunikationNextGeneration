@@ -11,7 +11,7 @@ import org.apache.commons.logging.LogFactory;
 /**
  * Thread wartet auf ankommende Nachrichten vom Server und bearbeitet diese.
  *
- * @author Peter Mandl
+ * @author B. Königsberg
  */
 public class AdvancedMessageListenerThreadImpl extends AbstractMessageListenerThread {
 
@@ -32,8 +32,9 @@ public class AdvancedMessageListenerThreadImpl extends AbstractMessageListenerTh
         try {
             handleUserListEvent(loginEventPDU);
 
-            // FIXME: 1. We use shared Data to respond
+            // WICHIG: 1. Für Antworten immer sharedClientData verwenden
             ChatPDU loginEventConfirm = ChatPDU.createLoginEventConfirm(sharedClientData.userName, loginEventPDU);
+            // setzen der transactionID
             loginEventConfirm.setTransactionId(loginEventPDU.getTransactionId());
 
             connection.send(loginEventConfirm);
@@ -50,7 +51,9 @@ public class AdvancedMessageListenerThreadImpl extends AbstractMessageListenerTh
 
         try {
             ChatPDU messageEventConfirm = ChatPDU.createChatMessageEventConfirm(sharedClientData.userName, messageEventPDU);
+            // setzen der transactionID
             messageEventConfirm.setTransactionId(messageEventPDU.getTransactionId());
+            // setzen der sequenzNumber
             messageEventConfirm.setSequenceNumber(messageEventPDU.getSequenceNumber());
 
             connection.send(messageEventConfirm);
@@ -77,6 +80,7 @@ public class AdvancedMessageListenerThreadImpl extends AbstractMessageListenerTh
             handleUserListEvent(receivedPdu);
 
             ChatPDU logoutEventConfirm = ChatPDU.createLogoutEventConfirm(sharedClientData.userName, receivedPdu);
+            // setzen der transactionID
             logoutEventConfirm.setTransactionId(receivedPdu.getTransactionId());
 
             connection.send(logoutEventConfirm);

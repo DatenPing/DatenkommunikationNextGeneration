@@ -195,6 +195,7 @@ public abstract class AbstractWorkerThread extends Thread {
             try {
                 clients.getClient(eventInitiatorClient).getConnection().send(responsePdu);
 
+                //Information für debugging
                 DirectionInfo.printPduDirection(responsePdu, DirectionInfo.Dir.S_TO_C, userName);
 
             } catch (Exception e) {
@@ -267,6 +268,7 @@ public abstract class AbstractWorkerThread extends Thread {
             try {
                 if (client != null) {
 
+                    //Information für debugging
                     DirectionInfo.printPduDirection(pdu, DirectionInfo.Dir.S_TO_C, userName);
 
                     client.getConnection().send(pdu);

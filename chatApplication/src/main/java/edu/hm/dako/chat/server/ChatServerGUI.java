@@ -29,6 +29,7 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.log4j.PropertyConfigurator;
 
+import java.lang.management.ManagementFactory;
 import java.text.SimpleDateFormat;
 import java.util.Calendar;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -415,6 +416,7 @@ public class ChatServerGUI extends Application implements ChatServerGuiInterface
      */
     private void startChatServer(String implType, int serverPort, int sendBufferSize,
                                  int receiveBufferSize) throws Exception {
+
 
         ImplementationType serverImpl = ImplementationType.TCPAdvancedImplementation;
         if (implType.equals(SystemConstants.IMPL_TCP_ADVANCED)) {

@@ -103,6 +103,7 @@ public abstract class AbstractChatClient implements ClientCommunication {
         sharedClientData.status = ClientConversationStatus.REGISTERING;
         ChatPDU requestPdu = new ChatPDU();
         requestPdu.setPduType(PduType.LOGIN_REQUEST);
+        // setzen der transactionID
         requestPdu.setTransactionId("LoginRequest-" + UUID.randomUUID().toString());
         requestPdu.setClientStatus(sharedClientData.status);
         Thread.currentThread().setName("Client-" + userName);
@@ -123,6 +124,7 @@ public abstract class AbstractChatClient implements ClientCommunication {
 
         ChatPDU requestPdu = new ChatPDU();
         requestPdu.setPduType(PduType.CHAT_MESSAGE_REQUEST);
+        // setzen der transactionID
         requestPdu.setTransactionId("MessageRequest-" + UUID.randomUUID().toString());
         requestPdu.setClientStatus(sharedClientData.status);
         requestPdu.setClientThreadName(Thread.currentThread().getName());
@@ -150,6 +152,7 @@ public abstract class AbstractChatClient implements ClientCommunication {
         sharedClientData.status = ClientConversationStatus.UNREGISTERING;
         ChatPDU requestPdu = new ChatPDU();
         requestPdu.setPduType(PduType.LOGOUT_REQUEST);
+        // setzen der transactionID
         requestPdu.setTransactionId("LogoutRequest-" + UUID.randomUUID().toString());
         requestPdu.setClientStatus(sharedClientData.status);
         requestPdu.setClientThreadName(Thread.currentThread().getName());

@@ -18,7 +18,7 @@ import java.util.Vector;
  * Worker-Thread zur serverseitigen Bedienung einer Session mit einem Client.
  * Jedem Chat-Client wird serverseitig ein Worker-Thread zugeordnet.
  *
- * @author Mandl
+ * @author B. Königsberg
  */
 public class AdvancedChatWorkerThreadImpl extends AbstractWorkerThread {
 
@@ -32,6 +32,7 @@ public class AdvancedChatWorkerThreadImpl extends AbstractWorkerThread {
 
     @Override
     protected void loginRequestAction(ChatPDU loginRequestPDU) {
+        //Information für debugging
         DirectionInfo.printPduDirection(loginRequestPDU, DirectionInfo.Dir.C_TO_S, userName);
 
         ChatPDU pdu;
@@ -56,12 +57,12 @@ public class AdvancedChatWorkerThreadImpl extends AbstractWorkerThread {
 
             // Login-Event an alle Clients (auch an den gerade aktuell
             // anfragenden) senden
-            // FIXME: 2. Waitlist MUSS vor dem senden erstellt werden
+            // WICHTIG: 2. Waitlist MUSS vor dem senden erstellt werden
             clients.createWaitList(userName);
 
             pdu = ChatPDU.createLoginEventPdu(userName, loginRequestPDU);
 
-            // Set transaction from the request
+            // Setze transaction vom request
             pdu.setTransactionId(loginRequestPDU.getTransactionId());
 
             sendLoginListUpdateEvent(pdu);
@@ -72,9 +73,17 @@ public class AdvancedChatWorkerThreadImpl extends AbstractWorkerThread {
         }
     }
 
+    /**
+     * Der User der den Login-Confirm gesendet hat wird von der WaitList
+     * des Initiators entfernt. Erst wenn die Waitlist leer ist, wird der
+     * Response gesendet.
+     *
+     * @param loginConfirmPDU pdu
+     */
     private void loginEventConfirmAction(ChatPDU loginConfirmPDU) {
         String eventUserName = loginConfirmPDU.getEventUserName();
 
+        //Information für debugging
         DirectionInfo.printPduDirection(loginConfirmPDU, DirectionInfo.Dir.C_TO_S, userName);
 
         clients.deleteWaitListEntry(eventUserName, loginConfirmPDU.getUserName());
@@ -82,10 +91,16 @@ public class AdvancedChatWorkerThreadImpl extends AbstractWorkerThread {
         tryCreateLoginResponsePDU(loginConfirmPDU);
     }
 
+    /**
+     * Wenn alle Confirms angekommen sind, schickt der letzte
+     * den Response an den Urheber
+     *
+     * @param loginConfirmPDU pdu
+     */
     private void tryCreateLoginResponsePDU(ChatPDU loginConfirmPDU) {
         String eventUserName = loginConfirmPDU.getEventUserName();
 
-        // FIXME: 3. NICHT DELETEABLE
+        // WICHTIG: 3. Wenn WaitList 0 -> Response an Initiator senden.
         if (clients.getWaitListSize(eventUserName) == 0) {
 
             ChatPDU loginResponse = new ChatPDU();
@@ -95,9 +110,11 @@ public class AdvancedChatWorkerThreadImpl extends AbstractWorkerThread {
             loginResponse.setClientStatus(ClientConversationStatus.REGISTERED);
 
             try {
-                // FIXME: 4. Wir verwenden DIREKT die connection vom event Urheber
+                // WICHTIG: 4. Wir verwenden DIREKT die connection vom event Urheber
                 clients.getClient(eventUserName)
                         .getConnection().send(loginResponse);
+
+                //Information für debugging
                 DirectionInfo.printPduDirection(loginResponse, DirectionInfo.Dir.S_TO_C, userName);
             } catch (Exception e) {
                 throw new IllegalStateException("Cannot send", e);
@@ -108,6 +125,8 @@ public class AdvancedChatWorkerThreadImpl extends AbstractWorkerThread {
 
     @Override
     protected void chatMessageRequestAction(ChatPDU messageRequestPDU) {
+
+        //Information für debugging
         DirectionInfo.printPduDirection(messageRequestPDU, DirectionInfo.Dir.C_TO_S, userName);
 
         ClientListEntry client;
@@ -126,15 +145,20 @@ public class AdvancedChatWorkerThreadImpl extends AbstractWorkerThread {
         }
     }
 
+    /**
+     * Die Nachricht des Initiators wird an alle Teilnehmer der WaitList gesendet
+     *
+     * @param messageRequestPDU pdu
+     */
     private void sendMessageEventToAllClients(ChatPDU messageRequestPDU) {
         ClientListEntry client;// Liste der betroffenen Clients ermitteln
         Vector<String> sendList = clients.getClientNameList();
         ChatPDU pdu = ChatPDU.createChatMessageEventPdu(userName, messageRequestPDU);
 
-        // Set transaction from the request
+        // Setze transaction vom reqeust
         pdu.setTransactionId(messageRequestPDU.getTransactionId());
 
-        // Set the sequenz number
+        // WICHTIG: Setze SequenceNumber
         pdu.setSequenceNumber(messageRequestPDU.getSequenceNumber());
 
         // Event an Clients senden
@@ -145,6 +169,7 @@ public class AdvancedChatWorkerThreadImpl extends AbstractWorkerThread {
                         && (client.getStatus() != ClientConversationStatus.UNREGISTERED)) {
                     pdu.setUserName(client.getUserName());
 
+                    //Information für debugging
                     DirectionInfo.printPduDirection(pdu, DirectionInfo.Dir.S_TO_C, userName);
                     client.getConnection().send(pdu);
 
@@ -165,6 +190,12 @@ public class AdvancedChatWorkerThreadImpl extends AbstractWorkerThread {
         log.debug("Aktuelle Laenge der Clientliste: " + clients.size());
     }
 
+    /**
+     * Wenn alle Message-Event-Confirms angekommen sind, schickt der letzte
+     * den Response an den Urheber
+     *
+     * @param messageConfirmPDU pdu
+     */
     private void messageEventConfirmAction(ChatPDU messageConfirmPDU) {
         DirectionInfo.printPduDirection(messageConfirmPDU, DirectionInfo.Dir.C_TO_S, userName);
 
@@ -178,7 +209,7 @@ public class AdvancedChatWorkerThreadImpl extends AbstractWorkerThread {
             eventInitiatorClient = clients.getClient(eventUserName);
 
             if (eventInitiatorClient != null) {
-                // Increase the number of event confirms
+                // Anzahl der eventConfirms erhöhen
                 eventInitiatorClient.incrNumberOfReceivedEventConfirms();
                 ChatPDU responsePdu = ChatPDU.createChatMessageResponsePdu(
                         eventUserName,
@@ -190,10 +221,10 @@ public class AdvancedChatWorkerThreadImpl extends AbstractWorkerThread {
                         messageConfirmPDU.getClientThreadName(),
                         System.nanoTime() - eventInitiatorClient.getStartTime());
 
-                // Set transaction from the request
+                // Setze transaction vom request
                 responsePdu.setTransactionId(messageConfirmPDU.getTransactionId());
 
-                // Set the sequenznumber
+                // Setze sequenzNumber
                 responsePdu.setSequenceNumber(messageConfirmPDU.getSequenceNumber());
 
                 if (responsePdu.getServerTime() / 1000000 > 100) {
@@ -207,6 +238,7 @@ public class AdvancedChatWorkerThreadImpl extends AbstractWorkerThread {
                     eventInitiatorClient
                             .getConnection().send(responsePdu);
 
+                    //Information für debugging
                     DirectionInfo.printPduDirection(responsePdu, DirectionInfo.Dir.S_TO_C, userName);
                     log.debug(
                             "Chat-Message-Response-PDU an " + messageConfirmPDU.getUserName() + " gesendet");
@@ -221,6 +253,8 @@ public class AdvancedChatWorkerThreadImpl extends AbstractWorkerThread {
 
     @Override
     protected void logoutRequestAction(ChatPDU logoutRequestPdu) {
+
+        //Information für debugging
         DirectionInfo.printPduDirection(logoutRequestPdu, DirectionInfo.Dir.C_TO_S, userName);
 
         ChatPDU pdu;
@@ -250,7 +284,15 @@ public class AdvancedChatWorkerThreadImpl extends AbstractWorkerThread {
         }
     }
 
+    /**
+     * Wenn alle Logout-Confirms angekommen sind, schickt der letzte
+     * den Response an den Urheber
+     *
+     * @param logoutEventPDU pdu
+     */
     private void logoutEventConfirmAction(ChatPDU logoutEventPDU) {
+
+        //Information für debugging
         DirectionInfo.printPduDirection(logoutEventPDU, DirectionInfo.Dir.C_TO_S, userName);
 
         String eventUserName = logoutEventPDU.getEventUserName();
@@ -267,7 +309,7 @@ public class AdvancedChatWorkerThreadImpl extends AbstractWorkerThread {
             clients.finish(eventUserName);
             log.debug("Laenge der Clientliste beim Vormerken zum Loeschen von " + eventUserName + ": " + clients.size());
 
-            // If the client ist still alive, set it to UNREGISTERED
+            // Wenn client ist "still alive", setze auf UNREGISTERED
             clients.changeClientStatus(eventUserName, ClientConversationStatus.UNREGISTERED);
         }
     }
@@ -285,16 +327,17 @@ public class AdvancedChatWorkerThreadImpl extends AbstractWorkerThread {
                     break;
 
                 case LOGIN_EVENT_CONFIRM:
+                    //Login-Event-Confirm vom Client empfangen
                     loginEventConfirmAction(receivedPdu);
                     break;
 
                 case CHAT_MESSAGE_REQUEST:
                     // Chat-Nachricht angekommen, an alle verteilen
-
                     chatMessageRequestAction(receivedPdu);
                     break;
 
                 case CHAT_MESSAGE_EVENT_CONFIRM:
+                    //Chat-Message-Event-Confirm vom Client empfangen
                     messageEventConfirmAction(receivedPdu);
                     break;
 
@@ -304,6 +347,7 @@ public class AdvancedChatWorkerThreadImpl extends AbstractWorkerThread {
                     break;
 
                 case LOGOUT_EVENT_CONFIRM:
+                    //Logout-Event-Confirm vom Client emfangen
                     logoutEventConfirmAction(receivedPdu);
 
                 default:
